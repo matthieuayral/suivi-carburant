@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff"><link rel="manifest" href="manifest.webmanifest">
+<title>Suivi Carburant</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:560px;margin:auto;padding:16px;background:#f5f5f5;color:#111}
+h1{font-size:24px;margin:4px 0 16px}.card{background:#fff;padding:16px;border-radius:10px}
+label{display:block;font-weight:650;margin-top:13px}input,select,textarea,button{box-sizing:border-box;width:100%;font-size:18px;padding:12px;margin-top:5px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}button{font-weight:750;margin-top:16px}.secondary{background:#fff}
+#status{margin-top:12px;white-space:pre-wrap;font-size:14px}.hidden{display:none}.small{font-size:13px;color:#555}
+</style>
+</head><body>
+<h1>Suivi Carburant</h1>
+<div class="card">
+<button id="login" class="secondary">Connexion Microsoft</button>
+<div id="who" class="small"></div>
+<form id="form">
+<div class="row"><div><label>Date</label><input id="date" type="date" required></div><div><label>Heure</label><input id="heure" type="time" required></div></div>
+<label>Kilométrage compteur</label><input id="km" type="number" inputmode="numeric" min="0" required>
+<div class="row"><div><label>Litres</label><input id="litres" type="number" inputmode="decimal" step="0.01" min="0.01" required></div><div><label>Montant (€)</label><input id="montant" type="number" inputmode="decimal" step="0.01" min="0.01" required></div></div>
+<label>Carburant</label><select id="carburant"><option>Excellium</option><option>Diesel</option><option>Autre</option></select>
+<div class="row"><div><label>Station</label><input id="station"></div><div><label>Ville</label><input id="ville"></div></div>
+<label>Prix proximité (€/L) — facultatif</label><input id="prixProx" type="number" inputmode="decimal" step="0.001" min="0">
+<label>Ticket — facultatif</label><input id="ticket" type="file" accept="image/*,application/pdf" capture="environment">
+<label>Commentaire</label><textarea id="commentaire" rows="2"></textarea>
+<button type="submit">ENREGISTRER</button>
+</form>
+<div id="status"></div>
+</div>
+<script type="module" src="app.js"></script>
+</body></html>
