@@ -14,7 +14,7 @@ function render(){ $("who").textContent=account?`Connecté : ${account.username}
 async function token(){if(!account) throw new Error("Connecte-toi d'abord à Microsoft.");try{return (await msal.acquireTokenSilent({account,scopes:["Files.ReadWrite"]})).accessToken}catch(e){console.error("Token silencieux",e);throw new Error("La session Microsoft doit être renouvelée. Clique sur Connexion Microsoft puis réessaie.");}}
 async function graph(url,opt={}){const t=await token();const r=await fetch("https://graph.microsoft.com/v1.0"+url,{...opt,headers:{Authorization:`Bearer ${t}`,...(opt.headers||{})}});if(!r.ok) throw new Error(`${r.status} ${await r.text()}`);return r.status===204?null:r.json();}
 const encPath=p=>p.split("/").map(encodeURIComponent).join("/");
-async function uploadTicket(file,date,km){if(!file)return "";const ext=(file.name.split(".").pop()||"jpg").replace(/[^a-z0-9]/gi,"");const name=`${date}_${km}_${Date.now()}.${ext}`;const path=`${CONFIG.ticketsFolder}/${name}`;await graph(`/me/drive/root:${encPath(path)}:/content`,{method:"PUT",headers:{"Content-Type":file.type||"application/octet-stream"},body:file});return path;}
+async function uploadTicket(file,date,km){if(!file)return "";const ext=(file.name.split(".").pop()||"jpg").replace(/[^a-z0-9]/gi,"");const name=`${date}_${km}_${Date.now()}.${ext}`;const path=`${CONFIG.ticketsFolder}/${name}`;const item=await graph(`/me/drive/root:${encPath(path)}:/content`,{method:"PUT",headers:{"Content-Type":file.type||"application/octet-stream"},body:file});return item?.webUrl||path;}
 function calculatedCells(row){const prev=row-1;return [
   `=IFERROR(F${row}/E${row},\"\")`,
   `=IFERROR(D${row}-D${prev},\"\")`,
@@ -32,12 +32,14 @@ $("form").onsubmit=async e=>{e.preventDefault();$("status").textContent="Enregis
   if(!(km>0&&litres>0&&montant>0))throw new Error("Km, litres et montant sont obligatoires.");
   const path=encPath(CONFIG.workbookPath);
   const table=encodeURIComponent(CONFIG.tableName);
-  const rows=await graph(`/me/drive/root:${path}:/workbook/tables/${table}/rows?$select=index`);
+  const rows=await graph(`/me/drive/root:${path}:/workbook/tables/${table}/rows?$select=index,values`);
   const count=rows.value.length;
+  const lastKm=count?Number(rows.value[count-1]?.values?.[0]?.[3]):0;
+  if(lastKm>0 && km<lastKm) throw new Error(`Kilométrage ${km} inférieur au dernier compteur enregistré (${lastKm}). Vérifie la saisie.`);
   const excelRow=count+2;
   const nextId=count+1;
-  const ticketPath=await uploadTicket($("ticket").files[0],$("date").value,km);
-  const raw=[nextId,$("date").value,$("heure").value,km,litres,montant,$("carburant").value,$("station").value.trim(),$("ville").value.trim(),$("prixProx").value?Number($("prixProx").value):"",ticketPath,$("commentaire").value.trim()];
+  const ticketUrl=await uploadTicket($("ticket").files[0],$("date").value,km);
+  const raw=[nextId,$("date").value,$("heure").value,km,litres,montant,$("carburant").value,$("station").value.trim(),$("ville").value.trim(),$("prixProx").value?Number($("prixProx").value):"",ticketUrl,$("commentaire").value.trim()];
   const values=[[...raw,...calculatedCells(excelRow)]];
   await graph(`/me/drive/root:${path}:/workbook/tables/${table}/rows/add`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({index:null,values})});
   $("status").textContent="Plein enregistré.";
