@@ -22,8 +22,8 @@ function calculatedCells(row){const prev=row-1;return [
   `=IFERROR(N${row}/O${row},\"\")`,
   `=IFERROR(E${prev}/N${row}*100,\"\")`,
   `=IFERROR(F${row}/N${row},\"\")`,
-  `=IFERROR(M${row}-J${row},\"\")`,
-  `=IFERROR(F${row}-E${row}*J${row},\"\")`,
+  `=IF(J${row}=\"\",\"\",IFERROR(M${row}-J${row},\"\"))`,
+  `=IF(J${row}=\"\",\"\",IFERROR(F${row}-E${row}*J${row},\"\"))`,
   `=IF(B${row}=\"\",\"\",TEXT(B${row},\"mmmm\"))`,
   `=IF(B${row}=\"\",\"\",YEAR(B${row}))`
 ];}
