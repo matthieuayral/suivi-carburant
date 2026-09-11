@@ -3,9 +3,13 @@ import { CONFIG } from "./config.js";
 const $=id=>document.getElementById(id);
 const msal = new PublicClientApplication({auth:{clientId:CONFIG.clientId,authority:`https://login.microsoftonline.com/${CONFIG.tenantId}`,redirectUri:CONFIG.redirectUri},cache:{cacheLocation:"localStorage"}});
 await msal.initialize();
+// Complete any authorization-code response before reading the account cache.
+try { await msal.handleRedirectPromise(); } catch (e) { console.error("MSAL redirect", e); }
 const now=new Date(); $("date").value=now.toISOString().slice(0,10); $("heure").value=now.toTimeString().slice(0,5);
-let account=msal.getAllAccounts()[0] || null; render();
-$("login").onclick=async()=>{const r=await msal.loginPopup({scopes:["User.Read","Files.ReadWrite"],redirectUri:CONFIG.redirectUri});account=r.account;render();};
+let account=msal.getActiveAccount() || msal.getAllAccounts()[0] || null;
+if(account) msal.setActiveAccount(account);
+render();
+$("login").onclick=async()=>{try{const r=await msal.loginPopup({scopes:["User.Read","Files.ReadWrite"],redirectUri:CONFIG.redirectUri});account=r.account || msal.getAllAccounts()[0] || null;if(account) msal.setActiveAccount(account);render();}catch(e){console.error("MSAL login",e);$("who").textContent="Connexion échouée : "+(e.errorCode||e.message||e);}};
 function render(){ $("who").textContent=account?`Connecté : ${account.username}`:"Non connecté"; }
 async function token(){if(!account) throw new Error("Connecte-toi d'abord à Microsoft.");try{return (await msal.acquireTokenSilent({account,scopes:["Files.ReadWrite"]})).accessToken}catch{return (await msal.acquireTokenPopup({account,scopes:["Files.ReadWrite"],redirectUri:CONFIG.redirectUri})).accessToken}}
 async function graph(url,opt={}){const t=await token();const r=await fetch("https://graph.microsoft.com/v1.0"+url,{...opt,headers:{Authorization:`Bearer ${t}`,...(opt.headers||{})}});if(!r.ok) throw new Error(`${r.status} ${await r.text()}`);return r.status===204?null:r.json();}
