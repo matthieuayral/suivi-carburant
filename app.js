@@ -11,6 +11,7 @@ if(account) msal.setActiveAccount(account);
 render();
 $("login").onclick=async()=>{try{await msal.loginRedirect({scopes:["User.Read","Files.ReadWrite"],redirectUri:CONFIG.redirectUri});}catch(e){console.error("MSAL login",e);$("who").textContent="Connexion échouée : "+(e.errorCode||e.message||e);}};
 function render(){ $("who").textContent=account?`Connecté : ${account.username}`:"Non connecté"; }
+function status(text,isError=false){$("status").textContent=text;$("status").classList.toggle("error",isError);}
 async function token(){if(!account) throw new Error("Connecte-toi d'abord à Microsoft.");try{return (await msal.acquireTokenSilent({account,scopes:["Files.ReadWrite"]})).accessToken}catch(e){console.error("Token silencieux",e);throw new Error("La session Microsoft doit être renouvelée. Clique sur Connexion Microsoft puis réessaie.");}}
 async function graph(url,opt={}){const t=await token();const r=await fetch("https://graph.microsoft.com/v1.0"+url,{...opt,headers:{Authorization:`Bearer ${t}`,...(opt.headers||{})}});if(!r.ok) throw new Error(`${r.status} ${await r.text()}`);return r.status===204?null:r.json();}
 const encPath=p=>p.split("/").map(encodeURIComponent).join("/");
@@ -27,7 +28,7 @@ function calculatedCells(row){const prev=row-1;return [
   `=IF(B${row}=\"\",\"\",TEXT(B${row},\"mmmm\"))`,
   `=IF(B${row}=\"\",\"\",YEAR(B${row}))`
 ];}
-$("form").onsubmit=async e=>{e.preventDefault();$("status").textContent="Enregistrement…";try{
+$("form").onsubmit=async e=>{e.preventDefault();status("Enregistrement…");try{
   const km=Number($("km").value),litres=Number($("litres").value),montant=Number($("montant").value);
   if(!(km>0&&litres>0&&montant>0))throw new Error("Km, litres et montant sont obligatoires.");
   const path=encPath(CONFIG.workbookPath);
@@ -42,7 +43,7 @@ $("form").onsubmit=async e=>{e.preventDefault();$("status").textContent="Enregis
   const raw=[nextId,$("date").value,$("heure").value,km,litres,montant,$("carburant").value,$("station").value.trim(),$("ville").value.trim(),$("prixProx").value?Number($("prixProx").value):"",ticketUrl,$("commentaire").value.trim()];
   const values=[[...raw,...calculatedCells(excelRow)]];
   await graph(`/me/drive/root:${path}:/workbook/tables/${table}/rows/add`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({index:null,values})});
-  $("status").textContent="Plein enregistré.";
+  status("Plein enregistré.");
   const keepFuel=$("carburant").value;$("form").reset();$("carburant").value=keepFuel;const n=new Date();$("date").value=n.toISOString().slice(0,10);$("heure").value=n.toTimeString().slice(0,5);
-}catch(err){$("status").textContent="ERREUR : "+err.message}};
+}catch(err){status("ERREUR : "+err.message,true)}};
 if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
