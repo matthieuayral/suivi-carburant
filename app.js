@@ -1,0 +1,15 @@
+import { PublicClientApplication } from "https://cdn.jsdelivr.net/npm/@azure/msal-browser@5/+esm";
+import { CONFIG } from "./config.js";
+const $=id=>document.getElementById(id);
+const msal = new PublicClientApplication({auth:{clientId:CONFIG.clientId,authority:`https://login.microsoftonline.com/${CONFIG.tenantId}`,redirectUri:CONFIG.redirectUri},cache:{cacheLocation:"localStorage"}});
+await msal.initialize();
+const now=new Date(); $("date").value=now.toISOString().slice(0,10); $("heure").value=now.toTimeString().slice(0,5);
+let account=msal.getAllAccounts()[0] || null; render();
+$("login").onclick=async()=>{const r=await msal.loginPopup({scopes:["User.Read","Files.ReadWrite"],redirectUri:CONFIG.redirectUri});account=r.account;render();};
+function render(){ $("who").textContent=account?`Connecté : ${account.username}`:"Non connecté"; }
+async function token(){if(!account) throw new Error("Connecte-toi d'abord à Microsoft.");try{return (await msal.acquireTokenSilent({account,scopes:["Files.ReadWrite"]})).accessToken}catch{return (await msal.acquireTokenPopup({account,scopes:["Files.ReadWrite"],redirectUri:CONFIG.redirectUri})).accessToken}}
+async function graph(url,opt={}){const t=await token();const r=await fetch("https://graph.microsoft.com/v1.0"+url,{...opt,headers:{Authorization:`Bearer ${t}`,...(opt.headers||{})}});if(!r.ok) throw new Error(`${r.status} ${await r.text()}`);return r.status===204?null:r.json();}
+const encPath=p=>p.split("/").map(encodeURIComponent).join("/");
+async function uploadTicket(file,date,km){if(!file)return "";const ext=(file.name.split(".").pop()||"jpg").replace(/[^a-z0-9]/gi,"");const name=`${date}_${km}_${Date.now()}.${ext}`;const path=`${CONFIG.ticketsFolder}/${name}`;await graph(`/me/drive/root:${encPath(path)}:/content`,{method:"PUT",headers:{"Content-Type":file.type||"application/octet-stream"},body:file});return path;}
+$("form").onsubmit=async e=>{e.preventDefault();$("status").textContent="Enregistrement…";try{const km=Number($("km").value),litres=Number($("litres").value),montant=Number($("montant").value);if(!(km>0&&litres>0&&montant>0))throw new Error("Km, litres et montant sont obligatoires.");const ticketPath=await uploadTicket($("ticket").files[0],$("date").value,km);const values=[["",$("date").value,$("heure").value,km,litres,montant,$("carburant").value,$("station").value.trim(),$("ville").value.trim(),$("prixProx").value?Number($("prixProx").value):"",ticketPath,$("commentaire").value.trim(),"","","","","","","","","",""]];const path=encPath(CONFIG.workbookPath);await graph(`/me/drive/root:${path}:/workbook/tables/${encodeURIComponent(CONFIG.tableName)}/rows/add`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({index:null,values})});$("status").textContent="Plein enregistré.";const keepFuel=$("carburant").value;$("form").reset();$("carburant").value=keepFuel;const n=new Date();$("date").value=n.toISOString().slice(0,10);$("heure").value=n.toTimeString().slice(0,5);}catch(err){$("status").textContent="ERREUR : "+err.message}};
+if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
