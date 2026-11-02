@@ -1,6 +1,6 @@
 import { PublicClientApplication } from "https://cdn.jsdelivr.net/npm/@azure/msal-browser@5/+esm";
 import { CONFIG } from "./config.js";
-import { cropTicket } from "./crop.js";
+import { cropTicket, isImage } from "./crop.js";
 const $=id=>document.getElementById(id);
 const msal = new PublicClientApplication({auth:{clientId:CONFIG.clientId,authority:`https://login.microsoftonline.com/${CONFIG.tenantId}`,redirectUri:CONFIG.redirectUri},cache:{cacheLocation:"localStorage"}});
 await msal.initialize();
@@ -16,14 +16,15 @@ function showTicket(f){
   const box=$("ticketBox");
   if(!f){ticketFile=null;box.classList.add("hidden");$("ticketPreview").removeAttribute("src");return;}
   ticketFile=f;box.classList.remove("hidden");
-  const isImg=f.type.startsWith("image/");$("ticketPreview").style.display=isImg?"":"none";$("recrop").style.display=isImg?"":"none";
+  const isImg=isImage(f);$("ticketPreview").style.display=isImg?"":"none";$("recrop").style.display=isImg?"":"none";
   if(isImg)$("ticketPreview").src=URL.createObjectURL(f);
   $("ticketInfo").textContent=`${f===$("ticket").files[0]?"Fichier d'origine":"Ticket recadré"} — ${Math.round(f.size/1024)} Ko`;
 }
 async function pickTicket(){
-  const orig=$("ticket").files[0];if(!orig){showTicket(null);return;}
-  try{const f=await cropTicket(orig);if(f===null){$("ticket").value="";showTicket(null);}else showTicket(f);}
-  catch(e){console.error("Recadrage",e);showTicket(orig);status("Recadrage impossible, la photo d'origine sera utilisée.",true);}
+  const orig=$("ticket").files[0];if(!orig){status("Aucune photo reçue.",true);showTicket(null);return;}
+  status(`Photo reçue : ${orig.name} — type « ${orig.type||"vide"} » — ${Math.round(orig.size/1024)} Ko`);
+  try{const f=await cropTicket(orig,m=>status(`Photo reçue (${orig.type||"type vide"}, ${Math.round(orig.size/1024)} Ko) — ${m}`));if(f!==null)status("");if(f===null){$("ticket").value="";showTicket(null);}else showTicket(f);}
+  catch(e){console.error("Recadrage",e);showTicket(orig);status("Recadrage impossible, la photo d'origine sera utilisée.\nDétail : "+(e&&(e.message||e.name)||e),true);}
 }
 $("ticket").addEventListener("change",pickTicket);
 $("recrop").onclick=pickTicket;

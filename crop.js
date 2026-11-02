@@ -245,10 +245,18 @@ const CSS = `
 
 // Ouvre l'écran de recadrage. Renvoie un File JPEG recadré, le fichier d'origine ("Photo entière"),
 // ou null si l'utilisateur annule.
-export async function cropTicket(file) {
-  if (!file || !file.type.startsWith("image/")) return file;
+export function isImage(file) {
+  if (!file) return false;
+  if (file.type) return file.type.startsWith("image/");
+  return /\.(jpe?g|png|webp|heic|heif|gif|bmp)$/i.test(file.name || "") || !/\.pdf$/i.test(file.name || "");
+}
+export async function cropTicket(file, log = () => {}) {
+  if (!isImage(file)) { log("Fichier non image : pas de recadrage"); return file; }
+  log("Chargement de la photo…");
   const src = await loadImage(file);
+  log(`Photo chargée ${src.width}×${src.height}, détection…`);
   const det = detectQuad(src);
+  log(det.found ? "Ticket détecté" : "Ticket non détecté");
   let quad = det.quad, rot = 0;
   // Orientation par défaut : ticket en portrait (côté court en haut)
   if (dist(quad[0], quad[1]) > dist(quad[0], quad[3])) rot = 1;
