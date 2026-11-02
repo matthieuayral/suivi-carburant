@@ -1,5 +1,6 @@
 import { PublicClientApplication } from "https://cdn.jsdelivr.net/npm/@azure/msal-browser@5/+esm";
 import { CONFIG } from "./config.js";
+import { cropTicket } from "./crop.js";
 const $=id=>document.getElementById(id);
 const msal = new PublicClientApplication({auth:{clientId:CONFIG.clientId,authority:`https://login.microsoftonline.com/${CONFIG.tenantId}`,redirectUri:CONFIG.redirectUri},cache:{cacheLocation:"localStorage"}});
 await msal.initialize();
@@ -10,6 +11,22 @@ let account=redirectResult?.account || msal.getActiveAccount() || msal.getAllAcc
 if(account) msal.setActiveAccount(account);
 render();
 $("login").onclick=async()=>{try{await msal.loginRedirect({scopes:["User.Read","Files.ReadWrite"],redirectUri:CONFIG.redirectUri});}catch(e){console.error("MSAL login",e);$("who").textContent="Connexion échouée : "+(e.errorCode||e.message||e);}};
+let ticketFile=null;
+function showTicket(f){
+  const box=$("ticketBox");
+  if(!f){ticketFile=null;box.classList.add("hidden");$("ticketPreview").removeAttribute("src");return;}
+  ticketFile=f;box.classList.remove("hidden");
+  const isImg=f.type.startsWith("image/");$("ticketPreview").style.display=isImg?"":"none";$("recrop").style.display=isImg?"":"none";
+  if(isImg)$("ticketPreview").src=URL.createObjectURL(f);
+  $("ticketInfo").textContent=`${f===$("ticket").files[0]?"Fichier d'origine":"Ticket recadré"} — ${Math.round(f.size/1024)} Ko`;
+}
+async function pickTicket(){
+  const orig=$("ticket").files[0];if(!orig){showTicket(null);return;}
+  try{const f=await cropTicket(orig);if(f===null){$("ticket").value="";showTicket(null);}else showTicket(f);}
+  catch(e){console.error("Recadrage",e);showTicket(orig);status("Recadrage impossible, la photo d'origine sera utilisée.",true);}
+}
+$("ticket").addEventListener("change",pickTicket);
+$("recrop").onclick=pickTicket;
 function render(){ $("who").textContent=account?`Connecté : ${account.username}`:"Non connecté"; }
 function status(text,isError=false){$("status").textContent=text;$("status").classList.toggle("error",isError);}
 async function token(){if(!account) throw new Error("Connecte-toi d'abord à Microsoft.");try{return (await msal.acquireTokenSilent({account,scopes:["Files.ReadWrite"]})).accessToken}catch(e){console.error("Token silencieux",e);throw new Error("La session Microsoft doit être renouvelée. Clique sur Connexion Microsoft puis réessaie.");}}
@@ -39,11 +56,11 @@ $("form").onsubmit=async e=>{e.preventDefault();status("Enregistrement…");try{
   if(lastKm>0 && km<lastKm) throw new Error(`Kilométrage ${km} inférieur au dernier compteur enregistré (${lastKm}). Vérifie la saisie.`);
   const excelRow=count+2;
   const nextId=count+1;
-  const ticketUrl=await uploadTicket($("ticket").files[0],$("date").value,km);
+  const ticketUrl=await uploadTicket(ticketFile||$("ticket").files[0],$("date").value,km);
   const raw=[nextId,$("date").value,$("heure").value,km,litres,montant,$("carburant").value,$("station").value.trim(),$("ville").value.trim(),$("prixProx").value?Number($("prixProx").value):"",ticketUrl,$("commentaire").value.trim()];
   const values=[[...raw,...calculatedCells(excelRow)]];
   await graph(`/me/drive/root:${path}:/workbook/tables/${table}/rows/add`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({index:null,values})});
   status("Plein enregistré.");
-  const keepFuel=$("carburant").value;$("form").reset();$("carburant").value=keepFuel;const n=new Date();$("date").value=n.toISOString().slice(0,10);$("heure").value=n.toTimeString().slice(0,5);
+  const keepFuel=$("carburant").value;$("form").reset();showTicket(null);$("carburant").value=keepFuel;const n=new Date();$("date").value=n.toISOString().slice(0,10);$("heure").value=n.toTimeString().slice(0,5);
 }catch(err){status("ERREUR : "+err.message,true)}};
 if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
